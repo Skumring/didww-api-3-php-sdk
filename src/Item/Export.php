@@ -119,23 +119,24 @@ class Export extends BaseItem
             return 'Failed to open destination file for writing';
         }
 
-        $options = [
-            CURLOPT_HTTPHEADER => [
-                "Api-Key: $apiKey",
-                'User-Agent: didww-php-sdk/'.\Didww\Client::sdkVersion(),
-                'X-DIDWW-API-Version: '.(\Didww\Configuration::getCredentials()->getVersion() ?? '2026-04-16'),
-            ],
-            CURLOPT_FILE => $destHandle,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_URL => $this->getAttributes()['url'],
-            CURLOPT_FAILONERROR => true, // HTTP code > 400 will throw curl error
-        ];
-        $ch = curl_init();
-        curl_setopt_array($ch, $options);
-        $return = curl_exec($ch);
-        $error = false === $return ? curl_error($ch) : null;
-        unset($ch);
-        if ($ownHandle) {
+        try {
+            \Didww\Configuration::getHttpClient()->request('GET', $this->getAttributes()['url'], [
+                'headers' => [
+                    'Api-Key' => $apiKey,
+                    'User-Agent' => 'didww-php-sdk/'.\Didww\Client::sdkVersion(),
+                    'X-DIDWW-API-Version' => \Didww\Configuration::getCredentials()->getVersion() ?? '2026-04-16',
+                ],
+                'sink' => $destHandle,
+                'allow_redirects' => true,
+                // HTTP code >= 400 will throw a GuzzleException, same as CURLOPT_FAILONERROR before.
+            ]);
+            $error = null;
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            $error = $e->getMessage();
+        }
+        // Guzzle's 'sink' stream wrapper already closes the underlying resource once
+        // the response body has been written to it.
+        if ($ownHandle && is_resource($destHandle)) {
             fclose($destHandle);
         }
 
