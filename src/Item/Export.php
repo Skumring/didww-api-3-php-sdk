@@ -156,7 +156,7 @@ class Export extends BaseItem
             return $result;
         }
 
-        $gz = gzopen($tmpFile, 'rb');
+        $gz = fopen('compress.zlib://'.$tmpFile, 'rb');
         if (false === $gz) {
             unlink($tmpFile);
 
@@ -166,15 +166,13 @@ class Export extends BaseItem
         $ownHandle = !is_resource($dest);
         $destHandle = $ownHandle ? fopen($dest, 'wb') : $dest;
         if ($ownHandle && false === $destHandle) {
-            gzclose($gz);
+            fclose($gz);
             unlink($tmpFile);
 
             return 'Failed to open destination file for writing';
         }
-        while (!gzeof($gz)) {
-            fwrite($destHandle, gzread($gz, 8192));
-        }
-        gzclose($gz);
+        stream_copy_to_stream($gz, $destHandle);
+        fclose($gz);
         if ($ownHandle) {
             fclose($destHandle);
         }
